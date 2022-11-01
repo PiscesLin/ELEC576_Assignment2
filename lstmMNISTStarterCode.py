@@ -1,26 +1,27 @@
 import tensorflow as tf 
 from tensorflow.python.ops import rnn, rnn_cell
-import numpy as np 
-
+import numpy as np
+import matplotlib.pyplot as plt
 
 if(tf.__version__.split('.')[0]=='2'):
     import tensorflow.compat.v1 as tf
-    tf.disable_v2_behavior()    
+    tf.disable_v2_behavior()
 
-# Load MNIST dataset
-import input_data
+# Load MNIST dataset,
+# tensorflow 2.10.0 doesn't have examples.tutorials.mnist,
+# we need to download it from earlier version.
+from tensorflow.examples.tutorials.mnist import input_data
 mnist = input_data.read_data_sets('MNIST_data', one_hot=True)
 
-
-learningRate = 0.001
-trainingIters = 22000
-batchSize = 110
-displayStep = 10
+learningRate = 1e-3
+trainingIters = 100000
+batchSize = 10
+displayStep = 100
 
 nInput = 28 #we want the input to take the 28 pixels
 nSteps = 28 #every 28
-nHidden = 512 #number of neurons for the RNN
-nClasses = 10 #this is MNIST so you know
+nHidden = 256 #number of neurons for the RNN
+nClasses = 10
 
 x = tf.placeholder('float', [None, nSteps, nInput])
 y = tf.placeholder('float', [None, nClasses])
@@ -34,20 +35,21 @@ biases = {
 }
 
 def RNN(x, weights, biases):
-	x = tf.transpose(x, [1,0,2])
+	x = tf.transpose(x, [1, 0, 2])
 	x = tf.reshape(x, [-1, nInput])
-	x = tf.split(x, nSteps, 0) #configuring so you can get it as needed for the 28 pixels
+	x = tf.split(value = x, num_or_size_splits = nSteps, axis = 0)
 
-	# lstmCell = tf.compat.v1.nn.rnn_cell.BasicRNNCell(nHidden)
-	# lstmCell = rnn.BasicRNNCell(nHidden) #find which lstm to use in the documentation
-	# lstmCell = #find which lstm to use in the documentation
-	# lstmCell = rnn_cell.BasicLSTMCell(nHidden, forget_bias=1.0)
-	lstmCell = rnn_cell.GRUCell(nHidden)
-	# lstmCell = rnn_cell.BasicRNNCell(nHidden)
+	# uncomment, if you want to use RNN
+	# rnnCell = rnn_cell.BasicRNNCell(nHidden)
+	# outputs, states = tf.compat.v1.nn.static_rnn(rnnCell, x, dtype=tf.float32)
 
-	outputs, states = tf.compat.v1.nn.static_rnn(lstmCell, x, dtype = tf.float32)
-	# outputs, states = rnn.static_run(lstmCell, x, dtype = tf.float32) #for the rnn where to get the output and hidden state
-	#outputs, states = rnn.rnn(lstmCell, x, dtype=tf.float32)
+	# uncomment, if you want to use LSTM
+	lstmCell = rnn_cell.BasicLSTMCell(nHidden, forget_bias=1.0)
+	outputs, states = tf.compat.v1.nn.static_rnn(lstmCell, x, dtype=tf.float32)
+
+	# uncomment, if you want to use GRU
+	# gruCell = rnn_cell.GRUCell(nHidden)
+	# outputs, states = tf.compat.v1.nn.static_rnn(gruCell, x, dtype = tf.float32)
 
 	return tf.matmul(outputs[-1], weights['out'])+ biases['out']
 
@@ -56,34 +58,86 @@ pred = RNN(x, weights, biases)
 #optimization
 #create the cost, optimization, evaluation, and accuracy
 #for the cost softmax_cross_entropy_with_logits seems really good
-cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=pred, labels=y))
-optimizer = tf.train.AdamOptimizer(learning_rate=learningRate).minimize(cost)
-# optimizer = tf.train.RMSPropOptimizer(learning_rate=learningRate).minimize(cost)
+cost = tf.losses.softmax_cross_entropy(logits = pred, onehot_labels = y)
+
+# optimizer = tf.train.MomentumOptimizer(learning_rate = learningRate, momentum = 0.5).minimize(cost)
+# optimizer = tf.train.AdagradOptimizer(learning_rate = learningRate).minimize(cost)
+optimizer = tf.train.AdamOptimizer(learning_rate = learningRate).minimize(cost)
 
 correctPred = tf.equal(tf.argmax(pred, 1), tf.argmax(y, 1))
 accuracy = tf.reduce_mean(tf.cast(correctPred, tf.float32))
 
 init = tf.initialize_all_variables()
 
+acc_list = list()
+loss_list = list()
+
 with tf.Session() as sess:
 	sess.run(init)
 	step = 1
 
-	testData = mnist.test.images.reshape((-1, nSteps, nInput))
-	testLabel = mnist.test.labels
-	while step* batchSize < trainingIters:
-		batchX, batchY = mnist.train.next_batch(batchSize) #mnist has a way to get the next batch
+	while step * batchSize < trainingIters:
+		batchX, batchY = mnist.train.next_batch(batchSize)
 		batchX = batchX.reshape((batchSize, nSteps, nInput))
 
-		sess.run(optimizer, feed_dict={x: batchX, y: batchY})
+		sess.run(optimizer, feed_dict = {x: batchX, y: batchY})
 
 		if step % displayStep == 0:
-			acc = sess.run(accuracy, feed_dict={x: batchX, y: batchY})
-			loss = sess.run(cost, feed_dict={x: batchX, y: batchY})
-			testacc = sess.run(accuracy, feed_dict={x: testData, y: testLabel})
-			print("Iter " + str(step*batchSize) + ", Minibatch Loss= " + "{:.6f}".format(loss) + ", Training Accuracy= " + "{:.5f}".format(acc) + ", Test Accuracy= " + "{:.5f}".format(testacc))
-		step +=1
+			acc = accuracy.eval(feed_dict = {x: batchX, y: batchY})
+			loss = cost.eval(feed_dict = {x: batchX, y: batchY})
+			print("Iter " + str(step * batchSize) + ", Minibatch Loss= " + "{:.6f}".format(loss) + ", Training Accuracy= " + "{:.5f}".format(acc))
+			acc_list.append(acc)
+			loss_list.append(loss)
+		step += 1
 	print('Optimization finished')
 
-	print("Testing Accuracy:", \
-        sess.run(accuracy, feed_dict={x: testData, y: testLabel}))
+	testData = mnist.test.images.reshape((-1, nSteps, nInput))
+	testLabel = mnist.test.labels
+	print("Testing Accuracy:", sess.run(accuracy, feed_dict = {x: testData, y: testLabel}))
+
+'''
+# fig, ax = plt.subplots()
+# fig, bx = plt.subplots()
+# ax.plot(range(len(acc_list)), loss_list, 'r', label = 'RNN Trainig Loss for Momentum Optimizer')
+# ax.legend(loc = 'upper right')
+# bx.plot(range(len(acc_list)), acc_list, 'c', label = 'RNN Trainig Accuracy for Momentum Optimizer')
+# bx.legend(loc = 'lower right')
+
+# ax.plot(range(len(acc_list)), loss_list, 'r', label = 'RNN Trainig Loss for Adagrad Optimizer')
+# ax.legend(loc = 'upper right')
+# bx.plot(range(len(acc_list)), acc_list, 'c', label = 'RNN Trainig Accuracy for Adagrad Optimizer')
+# bx.legend(loc = 'lower right')
+
+# ax.plot(range(len(acc_list)), loss_list, 'r', label = 'RNN Trainig Loss for Adam Optimizer')
+# ax.legend(loc = 'upper right')
+# bx.plot(range(len(acc_list)), acc_list, 'c', label = 'RNN Trainig Accuracy for Adam Optimizer')
+# bx.legend(loc = 'lower right')
+# plt.show()
+'''
+
+# uncomment, if you want to see the plot result of RNN
+# fig, ax = plt.subplots()
+# fig, bx = plt.subplots()
+# ax.plot(range(len(acc_list)), loss_list, 'r', label = 'RNN Trainig Loss')
+# ax.legend(loc = 'upper right', shadow = True, fontsize = 'x-large')
+# bx.plot(range(len(acc_list)), acc_list, 'c', label = 'RNN Trainig Accuracy')
+# bx.legend(loc = 'lower right', shadow = True, fontsize = 'x-large')
+# plt.show()
+
+# uncomment, if you want to see the plot result of LSTM
+fig, ax = plt.subplots()
+fig, bx = plt.subplots()
+ax.plot(range(len(acc_list)), loss_list, 'r', label = 'LSTM Trainig Loss')
+ax.legend(loc = 'upper right', shadow = True, fontsize = 'x-large')
+bx.plot(range(len(acc_list)), acc_list, 'c', label = 'LSTM Trainig Accuracy')
+bx.legend(loc = 'lower right', shadow = True, fontsize = 'x-large')
+plt.show()
+
+# uncomment, if you want to see the plot result of GRU
+# fig, ax = plt.subplots()
+# fig, bx = plt.subplots()
+# ax.plot(range(len(acc_list)), loss_list, 'r', label = 'GRU Trainig Loss')
+# ax.legend(loc = 'upper right', shadow = True, fontsize = 'x-large')
+# bx.plot(range(len(acc_list)), acc_list, 'c', label = 'GRU Trainig Accuracy')
+# bx.legend(loc = 'lower right', shadow = True, fontsize = 'x-large')
+# plt.show()
