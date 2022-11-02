@@ -20,7 +20,7 @@ displayStep = 100
 
 nInput = 28 #we want the input to take the 28 pixels
 nSteps = 28 #every 28
-nHidden = 256 #number of neurons for the RNN
+nHidden = 256 #number of neurons for the RNN, here I choose 256 with GRU and Adam optimizer to acquire the best accuracy.
 nClasses = 10
 
 x = tf.placeholder('float', [None, nSteps, nInput])
@@ -44,12 +44,12 @@ def RNN(x, weights, biases):
 	# outputs, states = tf.compat.v1.nn.static_rnn(rnnCell, x, dtype=tf.float32)
 
 	# uncomment, if you want to use LSTM
-	lstmCell = rnn_cell.BasicLSTMCell(nHidden, forget_bias=1.0)
-	outputs, states = tf.compat.v1.nn.static_rnn(lstmCell, x, dtype=tf.float32)
+	# lstmCell = rnn_cell.BasicLSTMCell(nHidden, forget_bias=1.0)
+	# outputs, states = tf.compat.v1.nn.static_rnn(lstmCell, x, dtype=tf.float32)
 
 	# uncomment, if you want to use GRU
-	# gruCell = rnn_cell.GRUCell(nHidden)
-	# outputs, states = tf.compat.v1.nn.static_rnn(gruCell, x, dtype = tf.float32)
+	gruCell = rnn_cell.GRUCell(nHidden)
+	outputs, states = tf.compat.v1.nn.static_rnn(gruCell, x, dtype = tf.float32)
 
 	return tf.matmul(outputs[-1], weights['out'])+ biases['out']
 
@@ -125,19 +125,19 @@ with tf.Session() as sess:
 # plt.show()
 
 # uncomment, if you want to see the plot result of LSTM
-fig, ax = plt.subplots()
-fig, bx = plt.subplots()
-ax.plot(range(len(acc_list)), loss_list, 'r', label = 'LSTM Trainig Loss')
-ax.legend(loc = 'upper right', shadow = True, fontsize = 'x-large')
-bx.plot(range(len(acc_list)), acc_list, 'c', label = 'LSTM Trainig Accuracy')
-bx.legend(loc = 'lower right', shadow = True, fontsize = 'x-large')
-plt.show()
-
-# uncomment, if you want to see the plot result of GRU
 # fig, ax = plt.subplots()
 # fig, bx = plt.subplots()
-# ax.plot(range(len(acc_list)), loss_list, 'r', label = 'GRU Trainig Loss')
+# ax.plot(range(len(acc_list)), loss_list, 'r', label = 'LSTM Trainig Loss')
 # ax.legend(loc = 'upper right', shadow = True, fontsize = 'x-large')
-# bx.plot(range(len(acc_list)), acc_list, 'c', label = 'GRU Trainig Accuracy')
+# bx.plot(range(len(acc_list)), acc_list, 'c', label = 'LSTM Trainig Accuracy')
 # bx.legend(loc = 'lower right', shadow = True, fontsize = 'x-large')
 # plt.show()
+
+# uncomment, if you want to see the plot result of GRU
+fig, ax = plt.subplots()
+fig, bx = plt.subplots()
+ax.plot(range(len(acc_list)), loss_list, 'r', label = 'GRU Trainig Loss')
+ax.legend(loc = 'upper right', shadow = True, fontsize = 'x-large')
+bx.plot(range(len(acc_list)), acc_list, 'c', label = 'GRU Trainig Accuracy')
+bx.legend(loc = 'lower right', shadow = True, fontsize = 'x-large')
+plt.show()
