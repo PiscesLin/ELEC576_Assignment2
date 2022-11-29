@@ -1,1 +1,1 @@
-"# ELEC576_Assignment2" 
+"# Rice University, COMP576 / ELEC576_Assignment2" 
